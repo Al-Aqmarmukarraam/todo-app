@@ -1,0 +1,17 @@
+[project]
+name = "todo-app"
+version = "0.1.0"
+description = "A command-line todo application with in-memory storage"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "Developer", email = "developer@example.com" },
+]
+
+[project.scripts]
+todo = "todo_app.main:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "js-cookie": "^3.0.5",
+    "next-auth": "^4.24.13"
+  }
+}

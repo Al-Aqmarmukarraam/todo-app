@@ -1,0 +1,242 @@
+# SAFE FETCH WRAPPER BUILD ERROR FIX
+
+## 🐛 ISSUE IDENTIFIED
+
+**Build Error**: "Export getAuthToken doesn't exist in target module"
+**File**: frontend/src/lib/auth/safeFetchWrapper.ts
+**Cause**: The import statement tried to import `getAuthToken` from './utils', but that export does not exist in the utils.ts file. The correct function name is `getToken`.
+
+## 🔍 ROOT CAUSE
+
+After examining the `utils.ts` file, I found that the function is named `getToken` (line 5), not `getAuthToken`. The import statement was incorrect.
+
+## ✅ SOLUTION IMPLEMENTED
+
+### 1. Fixed Import Statement
+**Before**:
+```typescript
+import { getAuthToken, clearAuthStorage } from './utils';
+```
+
+**After**:
+```typescript
+import { getToken, clearAuthStorage } from './utils';
+```
+
+### 2. Updated Function Reference
+**Before**:
+```typescript
+const token = getAuthToken();
+```
+
+**After**:
+```typescript
+const token = getToken();
+```
+
+## 📋 COMPLETE CODE SNIPPET
+
+```typescript
+// Safe Fetch Wrapper for Protected Requests
+// Handles JWT authorization, error handling, and response validation
+
+import { getToken, clearAuthStorage } from './utils';
+
+// Base API configuration
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api';
+
+interface RequestOptions extends RequestInit {
+  skipAuth?: boolean;
+}
+
+interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+/**
+ * Safe fetch wrapper that handles JWT authorization and response validation
+ * @param url - The URL to fetch
+ * @param options - Request options
+ * @returns Promise<ApiResponse>
+ */
+const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Promise<ApiResponse<T>> => {
+  // Construct the full URL with the base URL
+  const fullUrl = `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+
+  // Clone the options to avoid mutating the original
+  const requestOptions: RequestOptions = { ...options };
+
+  // Set default headers if none provided
+  if (!requestOptions.headers) {
+    requestOptions.headers = {};
+  }
+
+  // Convert headers to a Headers object to make manipulation easier
+  let headers: Headers;
+  if (requestOptions.headers instanceof Headers) {
+    headers = requestOptions.headers;
+  } else if (Array.isArray(requestOptions.headers)) {
+    headers = new Headers(requestOptions.headers);
+  } else {
+    headers = new Headers(requestOptions.headers);
+  }
+
+  // Add Content-Type header if not already set and we have a body
+  if (requestOptions.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  // Add Authorization header if not skipping auth and token exists
+  if (!requestOptions.skipAuth) {
+    const token = getToken(); // Fixed: was getAuthToken()
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    } else {
+      return {
+        success: false,
+        error: 'No authentication token found'
+      };
+    }
+  }
+
+  // Replace the headers in the request options
+  requestOptions.headers = headers;
+
+  try {
+    const response = await fetch(fullUrl, requestOptions);
+
+    // Handle 401/403 Unauthorized responses by clearing auth state
+    if (response.status === 401 || response.status === 403) {
+      clearAuthStorage(); // Clear invalid token
+      return {
+        success: false,
+        error: 'Unauthorized: Please log in again'
+      };
+    }
+
+    // Check if the response status indicates an error
+    if (!response.ok) {
+      // Try to parse error response, but handle empty responses gracefully
+      let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
+
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        }
+      } catch (parseError) {
+        // If we can't parse the error response, use the status-based message
+        console.warn('Could not parse error response:', parseError);
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+
+    // Check if response has content before parsing JSON
+    const contentLength = response.headers.get('content-length');
+    const contentType = response.headers.get('content-type');
+
+    if (response.status === 204 || (contentLength && contentLength === '0')) {
+      return {
+        success: true,
+        data: undefined as T
+      };
+    }
+
+    // Verify that the response contains JSON before parsing
+    if (!contentType || !contentType.includes('application/json')) {
+      return {
+        success: false,
+        error: `Invalid response format: expected JSON, got ${contentType || 'unknown'}`
+      };
+    }
+
+    // Safely parse the JSON response
+    let responseData: T;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('Error parsing JSON response:', parseError);
+      return {
+        success: false,
+        error: 'Invalid JSON response from server'
+      };
+    }
+
+    return {
+      success: true,
+      data: responseData
+    };
+
+  } catch (error) {
+    // Handle network errors or other unexpected errors
+    console.error('Network error in safeFetch:', error);
+
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      return {
+        success: false,
+        error: 'Network error: Unable to reach server'
+      };
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred during fetch'
+    };
+  }
+};
+
+/**
+ * Convenience methods for common HTTP operations
+ */
+const api = {
+  get: <T = any>(url: string, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
+    safeFetch<T>(url, { ...options, method: 'GET' }),
+
+  post: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
+    safeFetch<T>(url, {
+      ...options,
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  put: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
+    safeFetch<T>(url, {
+      ...options,
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  patch: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
+    safeFetch<T>(url, {
+      ...options,
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  delete: <T = any>(url: string, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
+    safeFetch<T>(url, { ...options, method: 'DELETE' }),
+};
+
+export { safeFetch, api };
+export default api;
+```
+
+## ✅ VERIFICATION
+
+- Import statement now correctly imports `getToken` instead of `getAuthToken`
+- All function references updated to use the correct function name
+- Build error is resolved
+- All functionality remains intact
+- JWT handling logic preserved
+- Error handling logic preserved
+
+## 🎯 RESULT
+
+The build error is now fixed! The project will build successfully without any import/export mismatches while maintaining all authentication and safe fetch wrapper functionality.
