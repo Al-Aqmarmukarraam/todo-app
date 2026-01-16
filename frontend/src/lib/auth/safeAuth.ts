@@ -25,7 +25,7 @@ interface SafeApiResponse<T = any> {
 export const fetchCurrentUserProfile = async (): Promise<SafeApiResponse<UserProfile>> => {
   try {
     // Use the safe fetch wrapper to get user profile
-    const response = await api.get<UserProfile>('/user/profile');
+    const response = await api.get<UserProfile>('/auth/me');
 
     if (response.success && response.data) {
       // Validate that the parsed data has required user properties
@@ -41,6 +41,14 @@ export const fetchCurrentUserProfile = async (): Promise<SafeApiResponse<UserPro
         data: response.data
       };
     } else {
+      // Handle specific error cases that shouldn't be treated as user-facing errors
+      if (response.error === 'NO_TOKEN_FOUND' || response.error === 'UNAUTHORIZED') {
+        return {
+          success: false,
+          error: response.error
+        };
+      }
+
       return {
         success: false,
         error: response.error || 'Failed to fetch user profile'
@@ -86,21 +94,14 @@ export const getCurrentUser = (): UserProfile | null => {
  * @returns boolean indicating if user is authenticated
  */
 export const isAuthenticated = (): boolean => {
-  // First check if token exists and is valid
-  const tokenExists = !!getToken();
-  if (!tokenExists) {
+  // Check if token exists and is valid
+  const token = getToken();
+  if (!token) {
     return false;
   }
 
-  // Then try to get user from localStorage
-  const user = getCurrentUser();
-  if (user) {
-    return true;
-  }
-
-  // If no user in localStorage, we need to validate with backend
-  // This is handled by fetchCurrentUserProfile
-  return false;
+  // Use token validation utility to check if token is expired
+  return isTokenValid();
 };
 
 /**

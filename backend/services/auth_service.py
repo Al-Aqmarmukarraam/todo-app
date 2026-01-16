@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime, timedelta
-import jwt
+from jose import jwt, JWTError
 import hashlib
 from models.user import User, UserCreate
 from models.auth import RegisterRequest, LoginRequest
@@ -80,8 +80,14 @@ class AuthService:
             if user_id is None:
                 return None
             return int(user_id)
-        except jwt.PyJWTError:
+        except JWTError:
             return None
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """Get a user by their ID"""
+        with next(get_session()) as session:
+            user = session.exec(select(User).where(User.id == user_id)).first()
+            return user
 
 
 # Global instance

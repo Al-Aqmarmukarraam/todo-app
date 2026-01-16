@@ -1,14 +1,20 @@
 from sqlmodel import create_engine, Session
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
-import os
+from sqlalchemy.pool import QueuePool
 from typing import Generator
+import os
 
-# Get database URL from environment, with a default for development
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./todo_app.db")
+# Database URL from environment variable
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./todo_chatbot.db")
 
-# Create the engine
-engine = create_engine(DATABASE_URL, echo=True)
+# Create engine with connection pooling
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=QueuePool,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -18,8 +24,12 @@ def get_session() -> Generator[Session, None, None]:
 
 # Create all tables
 def create_db_and_tables():
+    # Import all models to ensure they're registered with SQLModel
     from models.user import User
-    from models.todo import Todo
-    from sqlmodel import SQLModel
+    from models.task_model import Task
+    from models.conversation_model import Conversation
+    from models.message_model import Message
 
+    # Create all tables
+    from sqlmodel import SQLModel
     SQLModel.metadata.create_all(engine)

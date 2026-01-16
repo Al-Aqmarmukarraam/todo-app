@@ -1,7 +1,12 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional, List
 from datetime import datetime
 import hashlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.task_model import Task
+    from models.conversation_model import Conversation
 
 
 class UserBase(SQLModel):
@@ -10,11 +15,17 @@ class UserBase(SQLModel):
 
 
 class User(UserBase, table=True):
+    __tablename__ = "user"
+
     id: Optional[int] = Field(default=None, primary_key=True)
-    password_hash: str = Field()
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    password_hash: str = Field(sa_column_kwargs={"nullable": False})
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     is_active: bool = Field(default=True)
+
+    # Relationships
+    tasks: List["Task"] = Relationship(back_populates="user")
+    conversations: List["Conversation"] = Relationship(back_populates="user")
 
 
 class UserCreate(UserBase):
@@ -28,3 +39,10 @@ class UserCreate(UserBase):
 class UserUpdate(SQLModel):
     email: Optional[str] = None
     username: Optional[str] = None
+
+
+class UserRead(SQLModel):
+    id: int
+    email: str
+    username: str
+    created_at: datetime

@@ -110,12 +110,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode, onSwitchMode }) => {
       if (mode === 'login') {
         await login(email, password);
       } else if (mode === 'signup') {
-        const userData: RegisterRequest = {
-          email,
-          username,
-          password,
-        };
-        await register(userData);
+        await register(email, username, password);
       }
 
       // Reset form after successful submission

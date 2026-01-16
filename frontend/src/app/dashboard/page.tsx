@@ -8,127 +8,93 @@ import { Todo, TodoCreate, TodoUpdate } from '@/lib/types';
 import TaskForm from '@/components/TaskForm/TaskForm';
 import TaskCard from '@/components/TaskCard/TaskCard';
 import { fetchCurrentUserProfile, getCurrentUser } from '@/lib/auth/safeAuth'; // Import safe auth functions
+import { parseBackendError } from '@/lib/auth/safeErrorParser';
 
 const DashboardPage: React.FC = () => {
-  const { user: authUser, isLoading: authLoading, logout, isAuthenticated: isAuthContextReady } = useAuth();
+  const { user: authUser, isLoading: authLoading, isHydrated, logout, isAuthenticated } = useAuth();
   const router = useRouter();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null); // Store the fetched user
-  const [userFetchLoading, setUserFetchLoading] = useState(true); // Loading state for user fetch
 
-  // Effect to redirect if not authenticated in auth context
+  // Wait for auth hydration to complete before showing content
   useEffect(() => {
-    if (!authLoading && !isAuthContextReady) {
+    if (!isHydrated) {
+      return; // Still hydrating, don't do anything yet
+    }
+
+    // If not authenticated after hydration, redirect to login
+    if (!isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthContextReady, authLoading, router]);
+  }, [isHydrated, isAuthenticated, router]);
 
-  // Effect to fetch current user using the safe auth function
+  // Effect to fetch todos when user is loaded and authenticated
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        // First, try to get user from localStorage (faster)
-        const localUser = getCurrentUser();
-        if (localUser) {
-          setCurrentUser(localUser);
-          setUserFetchLoading(false);
-
-          // Still fetch from server in background to validate token
-          setTimeout(async () => {
-            const serverResponse = await fetchCurrentUserProfile();
-            if (serverResponse.success && serverResponse.data) {
-              // Update user data with fresh data from server
-              localStorage.setItem('user', JSON.stringify(serverResponse.data));
-              setCurrentUser(serverResponse.data);
-            } else if (serverResponse.error?.includes('Unauthorized')) {
-              // If unauthorized, log out and redirect
-              logout();
-              router.push('/login');
-            }
-          }, 0);
-        } else {
-          // If no user in localStorage, fetch from server
-          const response = await fetchCurrentUserProfile();
-
-          if (response.success && response.data) {
-            // Store user in localStorage for future quick access
-            localStorage.setItem('user', JSON.stringify(response.data));
-            setCurrentUser(response.data);
-          } else if (response.error?.includes('Unauthorized')) {
-            // If unauthorized, log out and redirect
-            logout();
-            router.push('/login');
-            return;
-          } else {
-            setError(response.error || 'Failed to load user profile');
-          }
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching user:', err);
-        setError('An unexpected error occurred while loading user profile');
-      } finally {
-        setUserFetchLoading(false);
-      }
-    };
-
-    // Only fetch user if auth context is ready
-    if (isAuthContextReady) {
-      fetchCurrentUser();
-    } else {
-      setUserFetchLoading(false);
-    }
-  }, [isAuthContextReady, logout, router]);
-
-  // Effect to fetch todos when user is loaded
-  useEffect(() => {
-    if (isAuthContextReady && currentUser) {
+    console.log('Dashboard effect triggered:', { isHydrated, isAuthenticated, authUser: !!authUser });
+    if (isHydrated && isAuthenticated && authUser) {
       fetchTodos();
     }
-  }, [isAuthContextReady, currentUser]);
+  }, [isHydrated, isAuthenticated, authUser]);
 
   const fetchTodos = async () => {
-    if (!currentUser) return;
+    if (!authUser) return;
 
     try {
       setLoading(true);
       // Use the safe fetch wrapper instead of apiClient
-      const response = await api.get(`/user/${currentUser.id}/todos`);
+      // The backend expects the user_id to be in the URL path as per the router
+      const response = await api.get(`/${authUser.id}/tasks`);
 
       if (response.success && response.data) {
         setTodos(response.data as any[]);
       } else {
-        setError(response.error || 'Failed to fetch tasks');
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to fetch tasks';
+        setError(errorMessage);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch tasks');
+      const errorMessage = parseBackendError(err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreateTask = async (taskData: TodoCreate) => {
+    if (!authUser) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       // Use the safe fetch wrapper instead of apiClient
-      const response = await api.post(`/user/${currentUser.id}/todos`, taskData);
+      // The backend expects the user_id to be in the URL path as per the router
+      const response = await api.post(`/${authUser.id}/tasks`, taskData);
 
       if (response.success && response.data) {
         setTodos([...todos, response.data as any]);
         setShowTaskForm(false);
       } else {
-        setError(response.error || 'Failed to create task');
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to create task';
+        setError(errorMessage);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create task');
+      const errorMessage = parseBackendError(err);
+      setError(errorMessage);
     }
   };
 
   const handleUpdateTask = async (updatedTask: Todo) => {
+    if (!authUser) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       // Use the safe fetch wrapper instead of apiClient
-      const response = await api.put(`/user/${currentUser.id}/todos/${updatedTask.id}`, {
+      // The backend expects the user_id to be in the URL path as per the router
+      const response = await api.put(`/${authUser.id}/tasks/${updatedTask.id}`, {
         title: updatedTask.title,
         description: updatedTask.description,
         completed: updatedTask.completed
@@ -140,29 +106,44 @@ const DashboardPage: React.FC = () => {
           todo.id === updatedTask.id ? response.data : todo
         ));
       } else {
-        setError(response.error || 'Failed to update task');
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to update task';
+        setError(errorMessage);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update task');
+      const errorMessage = parseBackendError(err);
+      setError(errorMessage);
     }
   };
 
   const handleDeleteTask = async (taskId: number) => {
+    if (!authUser) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       // Use the safe fetch wrapper instead of apiClient
-      const response = await api.delete(`/user/${currentUser.id}/todos/${taskId}`);
+      // The backend expects the user_id to be in the URL path as per the router
+      const response = await api.delete(`/${authUser.id}/tasks/${taskId}`);
 
       if (response.success) {
         setTodos(todos.filter(todo => todo.id !== taskId));
       } else {
-        setError(response.error || 'Failed to delete task');
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to delete task';
+        setError(errorMessage);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to delete task');
+      const errorMessage = parseBackendError(err);
+      setError(errorMessage);
     }
   };
 
   const handleToggleTask = async (taskId: number) => {
+    if (!authUser) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
       // Find the current todo to get its completed status
       const currentTodo = todos.find(t => t.id === taskId);
@@ -171,7 +152,8 @@ const DashboardPage: React.FC = () => {
       const newCompletedStatus = !currentTodo.completed;
 
       // Use the safe fetch wrapper instead of apiClient
-      const response = await api.patch(`/user/${currentUser.id}/todos/${taskId}/complete`, {
+      // The backend expects the user_id to be in the URL path as per the router
+      const response = await api.patch(`/${authUser.id}/tasks/${taskId}/complete`, {
         completed: newCompletedStatus
       });
 
@@ -180,15 +162,17 @@ const DashboardPage: React.FC = () => {
           todo.id === taskId ? response.data : todo
         ));
       } else {
-        setError(response.error || 'Failed to update task');
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to update task';
+        setError(errorMessage);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to update task');
+      const errorMessage = parseBackendError(err);
+      setError(errorMessage);
     }
   };
 
-  // Show loading state while auth is loading or user is being fetched
-  if (authLoading || userFetchLoading) {
+  // Show loading state while auth is loading or auth is not hydrated
+  if (authLoading || !isHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -199,8 +183,8 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  // Show error if not authenticated or user fetch failed
-  if (!isAuthContextReady || !currentUser) {
+  // If not authenticated after hydration, show access denied message
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -224,7 +208,7 @@ const DashboardPage: React.FC = () => {
               <h1 className="text-xl font-semibold text-gray-900">Todo Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Welcome, {currentUser.username}</span>
+              <span className="text-gray-700">Welcome, {authUser?.username}</span>
               <button
                 onClick={handleLogout}
                 className="ml-4 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
@@ -260,7 +244,7 @@ const DashboardPage: React.FC = () => {
                 <TaskForm
                   onSave={handleCreateTask}
                   onCancel={() => setShowTaskForm(false)}
-                  userId={currentUser.id}
+                  userId={authUser?.id}
                 />
               </div>
             )}

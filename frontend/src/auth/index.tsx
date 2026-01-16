@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { apiClient, AuthResponse, User } from '../lib/api/client';
 import { setToken, setUser, clearAuthStorage, getToken, getUser } from '../lib/auth/utils';
+import { parseBackendError } from '../lib/auth/safeErrorParser';
 
 // Define the authentication state interface
 interface AuthState {
@@ -11,6 +12,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isHydrated: boolean; // Added to track when auth state has been restored
   error: string | null;
 }
 
@@ -26,14 +28,16 @@ type AuthAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'CHECK_AUTH_STATUS_START' }
   | { type: 'CHECK_AUTH_STATUS_SUCCESS'; payload: User }
-  | { type: 'CHECK_AUTH_STATUS_FAILURE' };
+  | { type: 'CHECK_AUTH_STATUS_FAILURE' }
+  | { type: 'AUTH_HYDRATION_COMPLETE' }; // Added for hydration
 
 // Initial state
 const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true, // Changed to true initially to indicate auth is being checked
+  isHydrated: false, // Added to track hydration state
   error: null,
 };
 
@@ -55,6 +59,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         token: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
+        isHydrated: true, // Mark as hydrated after successful login/register
         error: null,
       };
     case 'LOGIN_FAILURE':
@@ -65,6 +70,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         token: null,
         isAuthenticated: false,
         isLoading: false,
+        isHydrated: true, // Mark as hydrated even after failure
         error: action.payload,
       };
     case 'LOGOUT':
@@ -74,6 +80,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         token: null,
         isAuthenticated: false,
         isLoading: false,
+        isHydrated: true, // Mark as hydrated after logout
         error: null,
       };
     case 'SET_ERROR':
@@ -92,6 +99,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         user: action.payload,
         isAuthenticated: true,
         isLoading: false,
+        isHydrated: true, // Mark as hydrated after checking auth status
         error: null,
       };
     case 'CHECK_AUTH_STATUS_FAILURE':
@@ -99,6 +107,13 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         ...state,
         user: null,
         isAuthenticated: false,
+        isLoading: false,
+        isHydrated: true, // Mark as hydrated after checking auth status
+      };
+    case 'AUTH_HYDRATION_COMPLETE':
+      return {
+        ...state,
+        isHydrated: true,
         isLoading: false,
       };
     default:
@@ -132,32 +147,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         // Check if we have a stored token
         const token = getToken();
+        console.log('Auth restoration - token exists:', !!token);
 
         if (!token) {
           // No token, user is not authenticated
+          console.log('No token found during auth restoration');
           dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+          dispatch({ type: 'AUTH_HYDRATION_COMPLETE' });
           return;
         }
 
         // Check if token is still valid by attempting to get user profile
+        console.log('Attempting to validate token with user profile fetch');
         const response = await apiClient.getUserProfile();
+
+        console.log('User profile response during auth restoration:', response);
 
         if (response.success && response.data) {
           // Update user in state and storage
           setUser(response.data);
+          console.log('Token validation successful during auth restoration');
           dispatch({
             type: 'CHECK_AUTH_STATUS_SUCCESS',
             payload: response.data
           });
-        } else {
+        } else if (response.error === 'NO_TOKEN_FOUND' || response.error === 'UNAUTHORIZED') {
           // Token is invalid or expired, clear auth state
+          console.log('Token validation failed during auth restoration - clearing storage');
           clearAuthStorage();
           dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+        } else {
+          // For other errors (like network errors), don't clear the token as it might be a temporary issue
+          console.log('Non-auth error during auth restoration - keeping token', response.error);
+          dispatch({
+            type: 'CHECK_AUTH_STATUS_SUCCESS',
+            payload: getUser() // Use cached user if available
+          });
         }
       } catch (error) {
-        // Error occurred, clear auth state
-        clearAuthStorage();
-        dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+        // For catch-all errors (like network issues), don't clear the token as it might be a temporary issue
+        console.error('Error during auth restoration - keeping token:', error);
+        dispatch({
+          type: 'CHECK_AUTH_STATUS_SUCCESS',
+          payload: getUser() // Use cached user if available
+        });
+      } finally {
+        dispatch({ type: 'AUTH_HYDRATION_COMPLETE' });
       }
     };
 
@@ -174,23 +209,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         // Store the token and user data
         const { user, access_token } = response.data;
+        console.log('Storing token after login:', access_token.substring(0, 20) + '...');
         setToken(access_token);
         setUser(user);
 
         dispatch({
           type: 'LOGIN_SUCCESS',
-          payload: { user, token: access_token, message: 'Login successful' }
+          payload: { user, token: access_token }
         });
       } else {
+        // Use the safe error parser to normalize the error
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Login failed';
         dispatch({
           type: 'LOGIN_FAILURE',
-          payload: response.error || 'Login failed'
+          payload: errorMessage
         });
       }
     } catch (error) {
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(error);
       dispatch({
         type: 'LOGIN_FAILURE',
-        payload: error instanceof Error ? error.message : 'Login failed'
+        payload: errorMessage
       });
     }
   };
@@ -205,23 +245,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         // Store the token and user data
         const { user, access_token } = response.data;
+        console.log('Storing token after registration:', access_token.substring(0, 20) + '...');
         setToken(access_token);
         setUser(user);
 
         dispatch({
           type: 'REGISTER_SUCCESS',
-          payload: { user, token: access_token, message: 'Registration successful' }
+          payload: { user, token: access_token }
         });
       } else {
+        // Use the safe error parser to normalize the error
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Registration failed';
         dispatch({
           type: 'REGISTER_FAILURE',
-          payload: response.error || 'Registration failed'
+          payload: errorMessage
         });
       }
     } catch (error) {
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(error);
       dispatch({
         type: 'REGISTER_FAILURE',
-        payload: error instanceof Error ? error.message : 'Registration failed'
+        payload: errorMessage
       });
     }
   };

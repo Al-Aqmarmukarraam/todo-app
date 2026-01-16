@@ -2,9 +2,10 @@
 'use client';
 
 import { getToken, isAuthenticated, clearAuthStorage } from '../auth/utils';
+import { parseBackendError } from '../auth/safeErrorParser';
 
 // Base API configuration
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://127.0.0.1:8000/api';
 
 // Define API response types
 export interface ApiResponse<T = any> {
@@ -106,10 +107,12 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
+        // Use the safe error parser to normalize the error
+        const errorMessage = parseBackendError(data);
         return {
           data: undefined as T,
           success: false,
-          error: data.error || `HTTP Error: ${response.status}`,
+          error: errorMessage,
         };
       }
 
@@ -139,10 +142,12 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(errorData);
       return {
         data: undefined as unknown as AuthResponse,
         success: false,
-        error: errorData.error || `HTTP Error: ${response.status}`,
+        error: errorMessage,
       };
     }
 
@@ -164,10 +169,12 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Registration failed' }));
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(errorData);
       return {
         data: undefined as unknown as AuthResponse,
         success: false,
-        error: errorData.error || `HTTP Error: ${response.status}`,
+        error: errorMessage,
       };
     }
 
@@ -187,102 +194,36 @@ class ApiClient {
     };
   }
 
-  // Todo methods
-  async getTodos(): Promise<ApiResponse<any[]>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined as any[],
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  // Todo methods - Updated to accept userId directly to avoid circular dependency
+  async getTodos(userId: string): Promise<ApiResponse<any[]>> {
     return this.request<any[]>(`/${userId}/todos`);
   }
 
-  async getTodo(todoId: number): Promise<ApiResponse<any>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined as any,
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  async getTodo(userId: string, todoId: number): Promise<ApiResponse<any>> {
     return this.request<any>(`/${userId}/todos/${todoId}`);
   }
 
-  async createTodo(todoData: any): Promise<ApiResponse<any>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined as any,
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  async createTodo(userId: string, todoData: any): Promise<ApiResponse<any>> {
     return this.request<any>(`/${userId}/todos`, {
       method: 'POST',
       body: JSON.stringify(todoData),
     });
   }
 
-  async updateTodo(todoId: number, todoData: any): Promise<ApiResponse<any>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined as any,
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  async updateTodo(userId: string, todoId: number, todoData: any): Promise<ApiResponse<any>> {
     return this.request<any>(`/${userId}/todos/${todoId}`, {
       method: 'PUT',
       body: JSON.stringify(todoData),
     });
   }
 
-  async deleteTodo(todoId: number): Promise<ApiResponse<void>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined,
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  async deleteTodo(userId: string, todoId: number): Promise<ApiResponse<void>> {
     return this.request<void>(`/${userId}/todos/${todoId}`, {
       method: 'DELETE',
     });
   }
 
-  async toggleTodoCompletion(todoId: number, completed: boolean): Promise<ApiResponse<any>> {
-    // Get user profile to get the current user ID
-    const userResponse = await this.getUserProfile();
-    if (!userResponse.success || !userResponse.data) {
-      return {
-        data: undefined as any,
-        success: false,
-        error: userResponse.error || 'Failed to get user profile'
-      };
-    }
-
-    const userId = userResponse.data.id;
+  async toggleTodoCompletion(userId: string, todoId: number, completed: boolean): Promise<ApiResponse<any>> {
     return this.request<any>(`/${userId}/todos/${todoId}/complete`, {
       method: 'PATCH',
       body: JSON.stringify({ completed }),
@@ -329,15 +270,16 @@ class ApiClient {
   async getUserProfile(): Promise<ApiResponse<User>> {
     const token = getToken();
     if (!token) {
+      // Return a more specific error that can be handled differently by auth context
       return {
         data: undefined as unknown as User,
         success: false,
-        error: 'No authentication token found',
+        error: 'NO_TOKEN_FOUND',
       };
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/user/profile`, {
+      const response = await fetch(`${this.baseUrl}/auth/me`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -354,7 +296,7 @@ class ApiClient {
           return {
             data: undefined as unknown as User,
             success: false,
-            error: 'Unauthorized: Please log in again',
+            error: 'UNAUTHORIZED',
           };
         }
 
@@ -374,10 +316,12 @@ class ApiClient {
           errorData = { error: `HTTP Error: ${response.status}` };
         }
 
+        // Use the safe error parser to normalize the error
+        const errorMessage = parseBackendError(errorData);
         return {
           data: undefined as unknown as User,
           success: false,
-          error: errorData.error || `HTTP Error: ${response.status}`,
+          error: errorMessage,
         };
       }
 
@@ -428,10 +372,12 @@ class ApiClient {
         };
       }
 
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(error);
       return {
         data: undefined as unknown as User,
         success: false,
-        error: error instanceof Error ? error.message : 'Network error',
+        error: errorMessage,
       };
     }
   }

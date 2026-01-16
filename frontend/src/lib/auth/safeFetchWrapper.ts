@@ -2,6 +2,7 @@
 // Handles JWT authorization, error handling, and response validation
 
 import { getToken, clearAuthStorage } from './utils';
+import { parseBackendError } from './safeErrorParser';
 
 // Base API configuration
 const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api';
@@ -25,6 +26,10 @@ interface ApiResponse<T = any> {
 const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Promise<ApiResponse<T>> => {
   // Construct the full URL with the base URL
   const fullUrl = `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+
+  // Determine if this is an auth endpoint that should not require a token
+  const isAuthEndpoint = url.includes('/auth/') && !url.includes('/auth/me');
+  const shouldSkipAuth = options.skipAuth || isAuthEndpoint;
 
   // Clone the options to avoid mutating the original
   const requestOptions: RequestOptions = { ...options };
@@ -50,16 +55,17 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
   }
 
   // Add Authorization header if not skipping auth and token exists
-  if (!requestOptions.skipAuth) {
+  if (!shouldSkipAuth) {
     const token = getToken();
-    if (token) {
+    console.log('Token presence:', !!token); // Log token presence
+    if (token && typeof token === 'string') {
+      console.log('Adding Authorization header'); // Log header addition
       headers.set('Authorization', `Bearer ${token}`);
     } else {
-      return {
-        success: false,
-        error: 'No authentication token found'
-      };
+      console.log('No token to add to header'); // Log when no token
     }
+    // Don't return error immediately if no token found during hydration
+    // The caller should handle missing token appropriately
   }
 
   // Replace the headers in the request options
@@ -70,7 +76,11 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
 
     // Handle 401/403 Unauthorized responses by clearing auth state
     if (response.status === 401 || response.status === 403) {
-      clearAuthStorage(); // Clear invalid token
+      // Only clear auth storage if this is not an auth endpoint
+      // (Don't clear auth when trying to validate credentials)
+      if (!isAuthEndpoint) {
+        clearAuthStorage(); // Clear invalid token
+      }
       return {
         success: false,
         error: 'Unauthorized: Please log in again'
@@ -86,7 +96,8 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
+          // Use the safe error parser to normalize the error
+          errorMessage = parseBackendError(errorData);
         }
       } catch (parseError) {
         // If we can't parse the error response, use the status-based message

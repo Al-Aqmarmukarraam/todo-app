@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { apiClient, AuthResponse, User } from '@/lib/api/client';
 import { setToken, setUser, clearAuthStorage, getToken, getUser } from './utils';
+import { parseBackendError } from './safeErrorParser';
 
 // Define the authentication state interface
 interface AuthState {
@@ -109,7 +110,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 // Create the AuthContext
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 }
@@ -132,32 +133,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         // Check if we have a stored token
         const token = getToken();
+        console.log('Checking auth status - token exists:', !!token);
 
         if (!token) {
           // No token, user is not authenticated
+          console.log('No token found, setting auth status to failure');
           dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
           return;
         }
 
         // Check if token is still valid by attempting to get user profile
+        console.log('Attempting to validate token with user profile fetch');
         const response = await apiClient.getUserProfile();
+
+        console.log('User profile response:', response);
 
         if (response.success && response.data) {
           // Update user in state and storage
           setUser(response.data);
+          console.log('Token validation successful, setting auth status to success');
           dispatch({
             type: 'CHECK_AUTH_STATUS_SUCCESS',
             payload: response.data
           });
         } else {
-          // Token is invalid or expired, clear auth state
-          clearAuthStorage();
-          dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+          // For other errors (like network errors), don't clear the token as it might be a temporary issue
+          console.log('Non-auth error during auth restoration - keeping token', response.error);
+          dispatch({
+            type: 'CHECK_AUTH_STATUS_SUCCESS',
+            payload: getUser() // Use cached user if available
+          });
         }
       } catch (error) {
-        // Error occurred, clear auth state
-        clearAuthStorage();
-        dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+        // For catch-all errors (like network issues), don't clear the token as it might be a temporary issue
+        console.error('Error during auth restoration - keeping token:', error);
+        dispatch({
+          type: 'CHECK_AUTH_STATUS_SUCCESS',
+          payload: getUser() // Use cached user if available
+        });
       }
     };
 
@@ -173,7 +186,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (response.success && response.data) {
         // Store the token and user data
-        const { user, token } = response.data;
+        const { user, access_token: token } = response.data;
         setToken(token);
         setUser(user);
 
@@ -182,29 +195,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           payload: response.data
         });
       } else {
+        // Use the safe error parser to normalize the error
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Login failed';
         dispatch({
           type: 'LOGIN_FAILURE',
-          payload: response.error || 'Login failed'
+          payload: errorMessage
         });
       }
     } catch (error) {
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(error);
       dispatch({
         type: 'LOGIN_FAILURE',
-        payload: error instanceof Error ? error.message : 'Login failed'
+        payload: errorMessage
       });
     }
   };
 
   // Register function
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, username: string, password: string) => {
     dispatch({ type: 'REGISTER_START' });
 
     try {
-      const response = await apiClient.register(email, password);
+      const response = await apiClient.register(email, username, password);
 
       if (response.success && response.data) {
         // Store the token and user data
-        const { user, token } = response.data;
+        const { user, access_token: token } = response.data;
         setToken(token);
         setUser(user);
 
@@ -213,15 +230,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           payload: response.data
         });
       } else {
+        // Use the safe error parser to normalize the error
+        const errorMessage = response.error ? parseBackendError(response.error) : 'Registration failed';
         dispatch({
           type: 'REGISTER_FAILURE',
-          payload: response.error || 'Registration failed'
+          payload: errorMessage
         });
       }
     } catch (error) {
+      // Use the safe error parser to normalize the error
+      const errorMessage = parseBackendError(error);
       dispatch({
         type: 'REGISTER_FAILURE',
-        payload: error instanceof Error ? error.message : 'Registration failed'
+        payload: errorMessage
       });
     }
   };
