@@ -38,15 +38,16 @@ export interface Todo {
 
 export interface TodoCreate {
   title: string;
-  description?: string;
-  completed?: boolean;
-  user_id: number;
+  description?: string | undefined;
+  completed?: boolean | undefined;
+  user_id?: number; // Optional since it's derived from JWT on backend
+  priority?: 'low' | 'medium' | 'high'; // Backend might support priority
 }
 
 export interface TodoUpdate {
-  title?: string;
-  description?: string;
-  completed?: boolean;
+  title?: string | undefined;
+  description?: string | undefined;
+  completed?: boolean | undefined;
 }
 
 export interface RegisterRequest {
@@ -71,8 +72,6 @@ export interface Task {
   user_id: number;
   title: string;
   description?: string;
-  due_date?: string;
-  priority: string;
   completed: boolean;
   created_at: string;
   updated_at: string;
@@ -81,19 +80,17 @@ export interface Task {
 export interface Conversation {
   id: number;
   user_id: number;
-  title?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface Message {
   id: number;
-  conversation_id: number;
-  sender_type: 'user' | 'ai';
-  content: string;
-  timestamp: string;
   user_id: number;
-  metadata?: string;
+  conversation_id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
 }
 
 export interface ChatRequest {
@@ -107,4 +104,15 @@ export interface ChatResponse {
   metadata: {
     user_id: number;
   };
+}
+
+// JWT Payload interface for authentication
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  exp: number;
+  iat: number;
+  iss?: string | undefined;
+  aud?: string | undefined;
+  sub?: string | undefined;
 }

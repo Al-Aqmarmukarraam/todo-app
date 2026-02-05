@@ -69,21 +69,21 @@ const api = {
     authFetch(url, {
       ...options,
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   put: (url: string, body?: any, options?: Omit<RequestOptions, 'method'>) =>
     authFetch(url, {
       ...options,
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   patch: (url: string, body?: any, options?: Omit<RequestOptions, 'method'>) =>
     authFetch(url, {
       ...options,
       method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   delete: (url: string, options?: Omit<RequestOptions, 'method'>) =>

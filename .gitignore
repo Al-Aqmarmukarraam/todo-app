@@ -7,3 +7,11 @@ todo-web-app/
 # Ignore Python cache files
 __pycache__/
 *.pyc
+
+.env
+.env.*
+dist/
+build/
+.dapr/
+.dapr-log/
+frontend/nul

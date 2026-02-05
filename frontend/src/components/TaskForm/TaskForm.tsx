@@ -21,15 +21,15 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSave, onCancel, userId }) =
     const newErrors: Record<string, string> = {};
 
     if (!title.trim()) {
-      newErrors.title = 'Title is required';
+      newErrors['title'] = 'Title is required';
     }
 
     if (title.length > 255) {
-      newErrors.title = 'Title must be less than 255 characters';
+      newErrors['title'] = 'Title must be less than 255 characters';
     }
 
     if (description && description.length > 1000) {
-      newErrors.description = 'Description must be less than 1000 characters';
+      newErrors['description'] = 'Description must be less than 1000 characters';
     }
 
     setErrors(newErrors);
@@ -59,8 +59,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSave, onCancel, userId }) =
       const newTask: TodoCreate = {
         title: title.trim(),
         description: description.trim() || undefined,
-        completed: false, // New tasks are not completed by default
-        user_id: userId
+        completed: false,
+        user_id: userId // This will be filtered out in the dashboard before sending to API
       };
       onSave(newTask);
     }
@@ -83,12 +83,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSave, onCancel, userId }) =
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className={`mt-1 block w-full px-3 py-2 border ${
-              errors.title ? 'border-red-500' : 'border-gray-300'
+              errors['title'] ? 'border-red-500' : 'border-gray-300'
             } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
             placeholder="Task title"
           />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+          {errors['title'] && (
+            <p className="mt-1 text-sm text-red-600">{errors['title']}</p>
           )}
         </div>
 
@@ -102,12 +102,12 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSave, onCancel, userId }) =
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={`mt-1 block w-full px-3 py-2 border ${
-              errors.description ? 'border-red-500' : 'border-gray-300'
+              errors['description'] ? 'border-red-500' : 'border-gray-300'
             } rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
             placeholder="Task description (optional)"
           />
-          {errors.description && (
-            <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+          {errors['description'] && (
+            <p className="mt-1 text-sm text-red-600">{errors['description']}</p>
           )}
         </div>
 
@@ -127,9 +127,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSave, onCancel, userId }) =
           </div>
         )}
 
-        {errors.general && (
+        {errors['general'] && (
           <div className="rounded-md bg-red-50 p-4">
-            <p className="text-sm text-red-700">{errors.general}</p>
+            <p className="text-sm text-red-700">{errors['general']}</p>
           </div>
         )}
 

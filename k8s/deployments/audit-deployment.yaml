@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-audit
+  labels:
+    app: todo-audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-audit
+  template:
+    metadata:
+      labels:
+        app: todo-audit
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "todo-audit"
+        dapr.io/log-level: "debug"
+        dapr.io/config: "dapr-config"
+    spec:
+      containers:
+      - name: audit
+        image: todo-audit:phase5
+        command: ["python", "consumers_runner.py"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: DAPR_HTTP_PORT
+          value: "3500"
+        - name: DAPR_HOST
+          value: "localhost"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-audit-service
+  labels:
+    app: todo-audit
+spec:
+  selector:
+    app: todo-audit
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP

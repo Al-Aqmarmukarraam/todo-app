@@ -5,7 +5,7 @@ import { getToken, clearAuthStorage } from './utils';
 import { parseBackendError } from './safeErrorParser';
 
 // Base API configuration
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] || 'http://localhost:8000/api';
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -68,11 +68,25 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
     // The caller should handle missing token appropriately
   }
 
+  // Set credentials to include to ensure cookies are sent with requests
+  // Only set credentials for requests that need cookie-based auth
+  if (!shouldSkipAuth) {
+    requestOptions.credentials = 'include';
+  }
+
   // Replace the headers in the request options
   requestOptions.headers = headers;
 
   try {
+    console.log('Making request to:', fullUrl); // Debug logging
+    console.log('Request options:', {
+      method: requestOptions.method,
+      headers: Object.fromEntries(headers.entries()),
+      hasBody: !!requestOptions.body
+    }); // Debug logging
+
     const response = await fetch(fullUrl, requestOptions);
+    console.log('Response status:', response.status, 'ok:', response.ok); // Debug logging
 
     // Handle 401/403 Unauthorized responses by clearing auth state
     if (response.status === 401 || response.status === 403) {
@@ -89,15 +103,26 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
 
     // Check if the response status indicates an error
     if (!response.ok) {
+      console.log('Response not ok, status:', response.status); // Debug logging
+
       // Try to parse error response, but handle empty responses gracefully
       let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`;
 
       try {
         const contentType = response.headers.get('content-type');
+        console.log('Response content-type:', contentType); // Debug logging
+
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
+          console.log('Raw error response:', errorData); // Debug logging
+
           // Use the safe error parser to normalize the error
           errorMessage = parseBackendError(errorData);
+        } else {
+          // For non-JSON responses, try to get text
+          const errorText = await response.text();
+          console.log('Non-JSON error response:', errorText); // Debug logging
+          errorMessage = errorText || errorMessage;
         }
       } catch (parseError) {
         // If we can't parse the error response, use the status-based message
@@ -113,6 +138,7 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
     // Check if response has content before parsing JSON
     const contentLength = response.headers.get('content-length');
     const contentType = response.headers.get('content-type');
+    console.log('Response contentLength:', contentLength, 'contentType:', contentType); // Debug logging
 
     if (response.status === 204 || (contentLength && contentLength === '0')) {
       return {
@@ -133,6 +159,7 @@ const safeFetch = async <T = any>(url: string, options: RequestOptions = {}): Pr
     let responseData: T;
     try {
       responseData = await response.json();
+      console.log('Successful response data:', responseData); // Debug logging
     } catch (parseError) {
       console.error('Error parsing JSON response:', parseError);
       return {
@@ -175,21 +202,21 @@ const api = {
     safeFetch<T>(url, {
       ...options,
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   put: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
     safeFetch<T>(url, {
       ...options,
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   patch: <T = any>(url: string, body?: any, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>
     safeFetch<T>(url, {
       ...options,
       method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }),
 
   delete: <T = any>(url: string, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> =>

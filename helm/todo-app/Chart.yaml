@@ -1,0 +1,6 @@
+apiVersion: v2
+name: todo-app
+description: A Helm chart for deploying the Todo App with Dapr and Kafka
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

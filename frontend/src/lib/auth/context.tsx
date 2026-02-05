@@ -53,7 +53,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
       return {
         ...state,
         user: action.payload.user,
-        token: action.payload.token,
+        token: action.payload.access_token,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -159,18 +159,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           // For other errors (like network errors), don't clear the token as it might be a temporary issue
           console.log('Non-auth error during auth restoration - keeping token', response.error);
-          dispatch({
-            type: 'CHECK_AUTH_STATUS_SUCCESS',
-            payload: getUser() // Use cached user if available
-          });
+          const cachedUser = getUser();
+          if (cachedUser) {
+            dispatch({
+              type: 'CHECK_AUTH_STATUS_SUCCESS',
+              payload: cachedUser
+            });
+          } else {
+            dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+          }
         }
       } catch (error) {
         // For catch-all errors (like network issues), don't clear the token as it might be a temporary issue
         console.error('Error during auth restoration - keeping token:', error);
-        dispatch({
-          type: 'CHECK_AUTH_STATUS_SUCCESS',
-          payload: getUser() // Use cached user if available
-        });
+        const cachedUser = getUser();
+        if (cachedUser) {
+          dispatch({
+            type: 'CHECK_AUTH_STATUS_SUCCESS',
+            payload: cachedUser
+          });
+        } else {
+          dispatch({ type: 'CHECK_AUTH_STATUS_FAILURE' });
+        }
       }
     };
 

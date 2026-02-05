@@ -7,6 +7,7 @@ import { api } from '@/lib/auth/safeFetchWrapper';
 import { Message } from '@/lib/types';
 import ChatMessage from '@/components/ChatMessage/ChatMessage';
 import ChatInput from '@/components/ChatInput/ChatInput';
+import QuickActions from '@/components/QuickActions/QuickActions';
 
 const HomePage = () => {
   const { user: authUser, isLoading: authLoading, isHydrated, logout, isAuthenticated } = useAuth();
@@ -47,11 +48,11 @@ const HomePage = () => {
       // Add user message to UI immediately
       const userMessage: Message = {
         id: Date.now(),
+        user_id: authUser.id,
         conversation_id: 1, // This would come from the actual conversation
-        sender_type: 'user',
+        role: 'user',
         content: messageText,
-        timestamp: new Date().toISOString(),
-        user_id: authUser.id
+        created_at: new Date().toISOString()
       };
 
       setMessages(prev => [...prev, userMessage]);
@@ -65,11 +66,11 @@ const HomePage = () => {
       if (response.success && response.data) {
         const aiMessage: Message = {
           id: Date.now() + 1,
+          user_id: authUser.id,
           conversation_id: response.data.conversation_id,
-          sender_type: 'ai',
+          role: 'assistant',
           content: response.data.response,
-          timestamp: new Date().toISOString(),
-          user_id: authUser.id
+          created_at: new Date().toISOString()
         };
 
         setMessages(prev => [...prev, aiMessage]);
@@ -135,8 +136,16 @@ const HomePage = () => {
 
       {/* Chat Container */}
       <main className="flex-1 flex flex-col max-w-4xl w-full mx-auto p-4">
+        {/* Quick Actions */}
+        <div className="mb-4">
+          <QuickActions
+            onQuickAction={handleSendMessage}
+            disabled={loading}
+          />
+        </div>
+
         {/* Messages Container */}
-        <div className="flex-1 overflow-y-auto mb-4 space-y-4 max-h-[calc(100vh-200px)]">
+        <div className="flex-1 overflow-y-auto mb-4 space-y-4 max-h-[calc(100vh-250px)]">
           {messages.length === 0 ? (
             <div className="text-center py-12">
               <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
@@ -157,7 +166,7 @@ const HomePage = () => {
               <ChatMessage
                 key={message.id}
                 message={message}
-                isOwnMessage={message.sender_type === 'user'}
+                isOwnMessage={message.role === 'user'}
               />
             ))
           )}

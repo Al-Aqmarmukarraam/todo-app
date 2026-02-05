@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-notification
+  labels:
+    app: todo-notification
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-notification
+  template:
+    metadata:
+      labels:
+        app: todo-notification
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "todo-notification"
+        dapr.io/app-port: "8001"
+        dapr.io/log-level: "debug"
+        dapr.io/config: "dapr-config"
+    spec:
+      containers:
+      - name: notification
+        image: todo-notification:phase5
+        ports:
+        - containerPort: 8001
+        command: ["python", "consumers_runner.py"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: DAPR_HTTP_PORT
+          value: "3500"
+        - name: DAPR_HOST
+          value: "localhost"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-notification-service
+  labels:
+    app: todo-notification
+spec:
+  selector:
+    app: todo-notification
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8001
+  type: ClusterIP

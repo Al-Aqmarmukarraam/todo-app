@@ -1,0 +1,13 @@
+apiVersion: v2
+name: todo-chatbot
+description: A Helm chart for the Todo AI Chatbot application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: todo-frontend
+    version: 0.1.0
+    repository: file://./charts/todo-frontend
+  - name: todo-backend
+    version: 0.1.0
+    repository: file://./charts/todo-backend

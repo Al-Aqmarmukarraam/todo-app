@@ -1,0 +1,94 @@
+# Global configurations
+global:
+  imagePullPolicy: IfNotPresent
+  serviceType: ClusterIP
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: todo-chatbot.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Frontend configuration
+frontend:
+  replicaCount: 1
+  image:
+    repository: todo-frontend
+    tag: latest
+  service:
+    port: 3000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    - name: BACKEND_URL
+      value: "http://todo-backend:8000"
+
+# Backend configuration
+backend:
+  replicaCount: 1
+  image:
+    repository: todo-backend
+    tag: latest
+  service:
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://user:password@postgres:5432/todo_db"
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: todo-secrets
+          key: openai-api-key
+    - name: MCP_SERVER_URL
+      value: "http://mcp-server:8001"
+
+# MCP Server configuration
+mcpServer:
+  replicaCount: 1
+  image:
+    repository: todo-mcp-server
+    tag: latest
+  service:
+    port: 8001
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# ConfigMaps
+configMaps:
+  app-config:
+    APP_ENV: "production"
+    LOG_LEVEL: "info"
+
+# Secrets
+secrets:
+  database-secret:
+    url: "postgresql://user:password@postgres:5432/todo_db"
+  openai-secret:
+    api-key: "your-openai-api-key-here"
+
+# Network Policy
+networkPolicy:
+  enabled: false  # Set to true to enable network policies

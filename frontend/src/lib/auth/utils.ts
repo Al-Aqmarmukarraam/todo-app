@@ -1,13 +1,17 @@
 // Centralized authentication utility for JWT management
 import { User } from '../api/client';
 
-// Token storage and retrieval utilities
+// Token storage and retrieval utilities - COOKIE ONLY
 export const getToken = (): string | null => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token');
-    // Ensure token is a valid string and not a malformed value
-    if (token && token !== 'undefined' && token !== 'null') {
-      return token;
+    // Get from cookies only (single source of truth)
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('auth_token='))
+      ?.split('=')[1];
+
+    if (cookieValue && cookieValue !== 'undefined' && cookieValue !== 'null') {
+      return cookieValue;
     }
   }
   return null;
@@ -16,27 +20,37 @@ export const getToken = (): string | null => {
 export const setToken = (token: string): void => {
   if (typeof window !== 'undefined' && token && typeof token === 'string') {
     try {
-      localStorage.setItem('access_token', token);
+      // Store ONLY in cookies for server-side access in middleware
+      const expires = new Date();
+      expires.setTime(expires.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+      // Use SameSite=None and Secure for cross-site requests when needed
+      document.cookie = `auth_token=${token};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
     } catch (error) {
-      console.error('Error storing token in localStorage:', error);
+      console.error('Error storing token in cookie:', error);
     }
   }
 };
 
 export const removeToken = (): void => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('access_token');
+    // Remove cookie by setting past expiration
+    document.cookie = 'auth_token=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
   }
 };
 
 export const getUser = (): User | null => {
   if (typeof window !== 'undefined') {
-    const userStr = localStorage.getItem('user');
+    // Get user from cookies only
+    const userStr = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('auth_user='))
+      ?.split('=')[1];
+
     if (userStr && userStr !== 'undefined' && userStr !== 'null') {
       try {
-        return JSON.parse(userStr);
+        return JSON.parse(decodeURIComponent(userStr));
       } catch (error) {
-        console.error('Error parsing user from localStorage:', error);
+        console.error('Error parsing user from cookie:', error);
         return null;
       }
     }
@@ -47,16 +61,21 @@ export const getUser = (): User | null => {
 export const setUser = (user: User): void => {
   if (typeof window !== 'undefined' && user) {
     try {
-      localStorage.setItem('user', JSON.stringify(user));
+      // Store user in cookie
+      const expires = new Date();
+      expires.setTime(expires.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+      const userJson = encodeURIComponent(JSON.stringify(user));
+      document.cookie = `auth_user=${userJson};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
     } catch (error) {
-      console.error('Error storing user in localStorage:', error);
+      console.error('Error storing user in cookie:', error);
     }
   }
 };
 
 export const removeUser = (): void => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('user');
+    // Remove user cookie
+    document.cookie = 'auth_user=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
   }
 };
 
@@ -82,12 +101,30 @@ export const isTokenExpired = (token: string): boolean => {
 
     // Decode the payload (second part)
     const payload = parts[1];
+    if (!payload) {
+      console.warn('JWT payload is empty');
+      return true;
+    }
+
     // Replace URL-safe base64 characters to standard base64
     const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
     // Pad with '=' if necessary
     const paddedBase64 = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
-    const decodedPayload = atob(paddedBase64);
-    const payloadObj = JSON.parse(decodedPayload);
+    let decodedPayload;
+    try {
+      decodedPayload = atob(paddedBase64);
+    } catch (decodeError) {
+      console.error('Error decoding JWT payload:', decodeError);
+      return true;
+    }
+
+    let payloadObj;
+    try {
+      payloadObj = JSON.parse(decodedPayload);
+    } catch (parseError) {
+      console.error('Error parsing JWT payload:', parseError);
+      return true;
+    }
 
     // Check if expiration exists and is valid
     if (typeof payloadObj.exp !== 'number') {

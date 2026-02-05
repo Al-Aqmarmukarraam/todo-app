@@ -1,0 +1,92 @@
+{{- if .Values.dapr.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-app.fullname" . }}-backend
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app: todo-backend
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+      app: todo-backend
+  template:
+    metadata:
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "{{ .Values.dapr.appId }}-backend"
+        dapr.io/app-port: "{{ .Values.dapr.appPort }}"
+        dapr.io/log-level: "{{ .Values.dapr.logLevel }}"
+        dapr.io/config: "{{ .Values.dapr.config }}"
+      labels:
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+        app: todo-backend
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "todo-app.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.dapr.appPort }}
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+            - name: DAPR_HOST
+              value: "localhost"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.dapr.appPort }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.dapr.appPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "todo-app.fullname" . }}-backend-service
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app: todo-backend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.dapr.appPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app: todo-backend
+{{- end }}

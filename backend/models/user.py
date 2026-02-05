@@ -1,9 +1,10 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime
-import hashlib
 from typing import TYPE_CHECKING
+from utils.password_utils import hash_password
 
+# Import related models to resolve relationship issues
 if TYPE_CHECKING:
     from models.task_model import Task
     from models.conversation_model import Conversation
@@ -32,8 +33,8 @@ class UserCreate(UserBase):
     password: str
 
     def hash_password(self) -> str:
-        """Hash the password using SHA-256"""
-        return hashlib.sha256(self.password.encode()).hexdigest()
+        """Hash the password using bcrypt"""
+        return hash_password(self.password)
 
 
 class UserUpdate(SQLModel):

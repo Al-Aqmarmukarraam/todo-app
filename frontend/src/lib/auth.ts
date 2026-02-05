@@ -7,7 +7,7 @@ import { setToken, setUser, clearAuthStorage, getToken, getUser, isAuthenticated
 // Define types for auth responses
 interface AuthResponse {
   user: {
-    id: string;
+    id: number; // Use number to match the User type from types.ts
     email: string;
     username: string;
     created_at: string;

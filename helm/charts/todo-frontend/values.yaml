@@ -1,0 +1,39 @@
+# Default values for todo-frontend
+replicaCount: 1
+
+image:
+  repository: todo-frontend
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+env: []
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+  backend:
+  service:
+    host: "todo-backend"      # agar backend same namespace me hai to service name
+    port: 8080                # backend service ka port
+

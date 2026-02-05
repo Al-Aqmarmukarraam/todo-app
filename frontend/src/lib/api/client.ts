@@ -5,7 +5,7 @@ import { getToken, isAuthenticated, clearAuthStorage } from '../auth/utils';
 import { parseBackendError } from '../auth/safeErrorParser';
 
 // Base API configuration
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] || 'http://127.0.0.1:8000/api';
 
 // Define API response types
 export interface ApiResponse<T = any> {
@@ -132,7 +132,7 @@ class ApiClient {
 
   // Authentication methods
   async login(email: string, password: string): Promise<ApiResponse<AuthResponse>> {
-    const response = await fetch(`${this.baseUrl}/auth/login`, {
+    const response = await fetch(`${this.baseUrl}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ class ApiClient {
   }
 
   async register(email: string, username: string, password: string): Promise<ApiResponse<AuthResponse>> {
-    const response = await fetch(`${this.baseUrl}/auth/register`, {
+    const response = await fetch(`${this.baseUrl}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -194,76 +194,92 @@ class ApiClient {
     };
   }
 
-  // Todo methods - Updated to accept userId directly to avoid circular dependency
-  async getTodos(userId: string): Promise<ApiResponse<any[]>> {
-    return this.request<any[]>(`/${userId}/todos`);
+  // Todo methods - Updated to use new route pattern without userId in URL
+  async getTodos(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/tasks');  // Using tasks endpoint since they're the same now
   }
 
-  async getTodo(userId: string, todoId: number): Promise<ApiResponse<any>> {
-    return this.request<any>(`/${userId}/todos/${todoId}`);
+  async getTodo(todoId: number): Promise<ApiResponse<any>> {
+    return this.request<any>(`/tasks/${todoId}`);  // Using tasks endpoint
   }
 
-  async createTodo(userId: string, todoData: any): Promise<ApiResponse<any>> {
-    return this.request<any>(`/${userId}/todos`, {
+  async createTodo(todoData: any): Promise<ApiResponse<any>> {
+    return this.request<any>('/tasks', {  // Using tasks endpoint
       method: 'POST',
       body: JSON.stringify(todoData),
     });
   }
 
-  async updateTodo(userId: string, todoId: number, todoData: any): Promise<ApiResponse<any>> {
-    return this.request<any>(`/${userId}/todos/${todoId}`, {
+  async updateTodo(todoId: number, todoData: any): Promise<ApiResponse<any>> {
+    return this.request<any>(`/tasks/${todoId}`, {  // Using tasks endpoint
       method: 'PUT',
       body: JSON.stringify(todoData),
     });
   }
 
-  async deleteTodo(userId: string, todoId: number): Promise<ApiResponse<void>> {
-    return this.request<void>(`/${userId}/todos/${todoId}`, {
+  async deleteTodo(todoId: number): Promise<ApiResponse<void>> {
+    return this.request<void>(`/tasks/${todoId}`, {  // Using tasks endpoint
       method: 'DELETE',
     });
   }
 
-  async toggleTodoCompletion(userId: string, todoId: number, completed: boolean): Promise<ApiResponse<any>> {
-    return this.request<any>(`/${userId}/todos/${todoId}/complete`, {
+  async toggleTodoCompletion(todoId: number, completed: boolean): Promise<ApiResponse<any>> {
+    return this.request<any>(`/tasks/${todoId}/complete`, {  // Using tasks endpoint
       method: 'PATCH',
       body: JSON.stringify({ completed }),
     });
   }
 
-  // Task methods (keeping for backward compatibility)
-  async getTasks(userId: string): Promise<ApiResponse<Task[]>> {
-    return this.request<Task[]>(`/${userId}/tasks`);
+  // Task methods (using new route pattern without userId in URL)
+  async getTasks(): Promise<ApiResponse<Task[]>> {
+    return this.request<Task[]>('/tasks');
   }
 
-  async getTask(userId: string, taskId: string): Promise<ApiResponse<Task>> {
-    return this.request<Task>(`/${userId}/tasks/${taskId}`);
+  async getTask(taskId: string): Promise<ApiResponse<Task>> {
+    return this.request<Task>(`/tasks/${taskId}`);
   }
 
-  async createTask(userId: string, taskData: Omit<Task, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<Task>> {
-    return this.request<Task>(`/${userId}/tasks`, {
+  async createTask(taskData: Omit<Task, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<Task>> {
+    return this.request<Task>('/tasks', {
       method: 'POST',
       body: JSON.stringify(taskData),
     });
   }
 
-  async updateTask(userId: string, taskId: string, taskData: Partial<Task>): Promise<ApiResponse<Task>> {
-    return this.request<Task>(`/${userId}/tasks/${taskId}`, {
+  async updateTask(taskId: string, taskData: Partial<Task>): Promise<ApiResponse<Task>> {
+    return this.request<Task>(`/tasks/${taskId}`, {
       method: 'PUT',
       body: JSON.stringify(taskData),
     });
   }
 
-  async deleteTask(userId: string, taskId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/${userId}/tasks/${taskId}`, {
+  async deleteTask(taskId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/tasks/${taskId}`, {
       method: 'DELETE',
     });
   }
 
-  async toggleTaskCompletionOld(userId: string, taskId: string, completed: boolean): Promise<ApiResponse<Task>> {
-    return this.request<Task>(`/${userId}/tasks/${taskId}/complete`, {
+  async toggleTaskCompletion(taskId: string, completed: boolean): Promise<ApiResponse<Task>> {
+    return this.request<Task>(`/tasks/${taskId}/complete`, {
       method: 'PATCH',
       body: JSON.stringify({ completed }),
     });
+  }
+
+  // Chat methods
+  async chat(message: string, conversationId?: number): Promise<ApiResponse<any>> {
+    return this.request<any>('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, conversation_id: conversationId }),
+    });
+  }
+
+  async getConversations(): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>('/chat/conversations');
+  }
+
+  async getConversationHistory(conversationId: number): Promise<ApiResponse<any[]>> {
+    return this.request<any[]>(`/chat/conversations/${conversationId}`);
   }
 
   // User methods
@@ -279,7 +295,7 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/auth/me`, {
+      const response = await fetch(`${this.baseUrl}/me`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -403,6 +419,9 @@ export const {
   updateTask,
   deleteTask,
   toggleTaskCompletionOld,
+  chat,
+  getConversations,
+  getConversationHistory,
   getUserProfile,
 } = apiClient;
 

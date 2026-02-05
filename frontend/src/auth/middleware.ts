@@ -2,7 +2,8 @@
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyJWT, JWTPayload } from './index';
+import { verifyJWT, getJWTPayload } from './index';
+
 
 // Define protected routes that require authentication
 const protectedRoutes = [
@@ -50,7 +51,7 @@ export async function requireAuth(request: NextRequest): Promise<NextResponse | 
 
   try {
     // Verify the token
-    const payload: JWTPayload = await verifyJWT(token);
+   const payload = await verifyJWT(token);
 
     // Token is valid, allow access
     // We can also add user info to the request if needed
@@ -78,7 +79,7 @@ export function withAuth(handler: (request: NextRequest) => Promise<NextResponse
 }
 
 // Server-side function to check authentication in Server Components
-export async function checkAuthServerSide(): Promise<JWTPayload | null> {
+export async function checkAuthServerSide(): Promise<any | null> {
   // This would typically be used in server components to check auth status
   // For this example, we'll assume we have access to request headers
   // In practice, this might need to be called differently in server components

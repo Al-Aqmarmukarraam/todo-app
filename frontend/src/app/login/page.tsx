@@ -4,22 +4,9 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import AuthForm from '@/components/AuthForm/AuthForm';
-import { useAuth } from '@/auth';
 
 const LoginPage: React.FC = () => {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
-
-  // If user is already authenticated, redirect to dashboard
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, router]);
-
-  if (isAuthenticated) {
-    return null; // Don't render anything while redirecting
-  }
 
   const handleSwitchToSignup = () => {
     router.push('/signup');

@@ -1,0 +1,55 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Local configuration files
+.env
+*.env
+.env.local
+.env.dev
+.env.test
+.env.prod
+.local
+.settings
+.vscode
+.idea
+
+# Database
+*.db
+*.db.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Development and testing
+docs/
+test/
+tests/
+testing/
+*.md
+README.md
+Dockerfile
+.dockerignore
+requirements-test.txt
+requirements-dev.txt

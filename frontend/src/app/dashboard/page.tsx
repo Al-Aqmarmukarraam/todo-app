@@ -7,45 +7,29 @@ import { api } from '@/lib/auth/safeFetchWrapper'; // Use the new safe fetch wra
 import { Todo, TodoCreate, TodoUpdate } from '@/lib/types';
 import TaskForm from '@/components/TaskForm/TaskForm';
 import TaskCard from '@/components/TaskCard/TaskCard';
-import { fetchCurrentUserProfile, getCurrentUser } from '@/lib/auth/safeAuth'; // Import safe auth functions
 import { parseBackendError } from '@/lib/auth/safeErrorParser';
+import ChatInterface from '@/components/ChatInterface/ChatInterface';
 
 const DashboardPage: React.FC = () => {
-  const { user: authUser, isLoading: authLoading, isHydrated, logout, isAuthenticated } = useAuth();
+  const { user: authUser, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
 
-  // Wait for auth hydration to complete before showing content
+  // Effect to fetch todos when user is loaded
   useEffect(() => {
-    if (!isHydrated) {
-      return; // Still hydrating, don't do anything yet
-    }
-
-    // If not authenticated after hydration, redirect to login
-    if (!isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isHydrated, isAuthenticated, router]);
-
-  // Effect to fetch todos when user is loaded and authenticated
-  useEffect(() => {
-    console.log('Dashboard effect triggered:', { isHydrated, isAuthenticated, authUser: !!authUser });
-    if (isHydrated && isAuthenticated && authUser) {
+    if (authUser) {
       fetchTodos();
     }
-  }, [isHydrated, isAuthenticated, authUser]);
+  }, [authUser]);
 
   const fetchTodos = async () => {
-    if (!authUser) return;
-
     try {
       setLoading(true);
-      // Use the safe fetch wrapper instead of apiClient
-      // The backend expects the user_id to be in the URL path as per the router
-      const response = await api.get(`/${authUser.id}/tasks`);
+      // Use the safe fetch wrapper - backend expects user identification from JWT cookie
+      const response = await api.get('/tasks');
 
       if (response.success && response.data) {
         setTodos(response.data as any[]);
@@ -61,16 +45,21 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleCreateTask = async (taskData: TodoCreate) => {
-    if (!authUser) {
-      setError('User not authenticated');
-      return;
-    }
+  const handleCreateTask = async (taskData: TodoCreate | TodoUpdate) => {
+    // Create task data excluding user_id since it's derived from the JWT token on the backend
+    const { user_id, ...taskDataWithoutUserId } = taskData;
+
+    // Ensure we have a TaskCreate-compatible object when creating
+    const createTaskData: any = {
+      title: ('title' in taskDataWithoutUserId && typeof taskDataWithoutUserId.title === 'string') ? taskDataWithoutUserId.title : '',
+      ...(taskDataWithoutUserId && 'description' in taskDataWithoutUserId && taskDataWithoutUserId.description !== undefined ? { description: taskDataWithoutUserId.description } : {}),
+      priority: 'medium', // Default priority for new tasks
+      completed: ('completed' in taskDataWithoutUserId && typeof taskDataWithoutUserId.completed === 'boolean') ? taskDataWithoutUserId.completed : false
+    };
 
     try {
-      // Use the safe fetch wrapper instead of apiClient
-      // The backend expects the user_id to be in the URL path as per the router
-      const response = await api.post(`/${authUser.id}/tasks`, taskData);
+      // Use the safe fetch wrapper - backend expects user identification from JWT
+      const response = await api.post('/tasks', createTaskData);
 
       if (response.success && response.data) {
         setTodos([...todos, response.data as any]);
@@ -86,24 +75,17 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleUpdateTask = async (updatedTask: Todo) => {
-    if (!authUser) {
-      setError('User not authenticated');
-      return;
-    }
+    // Create update data excluding user_id since it's derived from the JWT token on the backend
+    const { user_id, id, created_at, updated_at, ...updateData } = updatedTask;
 
     try {
-      // Use the safe fetch wrapper instead of apiClient
-      // The backend expects the user_id to be in the URL path as per the router
-      const response = await api.put(`/${authUser.id}/tasks/${updatedTask.id}`, {
-        title: updatedTask.title,
-        description: updatedTask.description,
-        completed: updatedTask.completed
-      });
+      // Use the safe fetch wrapper - backend expects user identification from JWT cookie
+      const response = await api.put(`/tasks/${id}`, updateData);
 
       if (response.success && response.data) {
         // Update the local state
         setTodos(todos.map(todo =>
-          todo.id === updatedTask.id ? response.data : todo
+          todo.id === id ? response.data : todo
         ));
       } else {
         const errorMessage = response.error ? parseBackendError(response.error) : 'Failed to update task';
@@ -116,15 +98,9 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleDeleteTask = async (taskId: number) => {
-    if (!authUser) {
-      setError('User not authenticated');
-      return;
-    }
-
     try {
-      // Use the safe fetch wrapper instead of apiClient
-      // The backend expects the user_id to be in the URL path as per the router
-      const response = await api.delete(`/${authUser.id}/tasks/${taskId}`);
+      // Use the safe fetch wrapper - backend expects user identification from JWT cookie
+      const response = await api.delete(`/tasks/${taskId}`);
 
       if (response.success) {
         setTodos(todos.filter(todo => todo.id !== taskId));
@@ -139,11 +115,6 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleToggleTask = async (taskId: number) => {
-    if (!authUser) {
-      setError('User not authenticated');
-      return;
-    }
-
     try {
       // Find the current todo to get its completed status
       const currentTodo = todos.find(t => t.id === taskId);
@@ -151,9 +122,8 @@ const DashboardPage: React.FC = () => {
 
       const newCompletedStatus = !currentTodo.completed;
 
-      // Use the safe fetch wrapper instead of apiClient
-      // The backend expects the user_id to be in the URL path as per the router
-      const response = await api.patch(`/${authUser.id}/tasks/${taskId}/complete`, {
+      // Use the safe fetch wrapper - backend expects user identification from JWT cookie
+      const response = await api.patch(`/tasks/${taskId}/complete`, {
         completed: newCompletedStatus
       });
 
@@ -171,8 +141,8 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // Show loading state while auth is loading or auth is not hydrated
-  if (authLoading || !isHydrated) {
+  // Show loading state while auth is loading
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -183,12 +153,13 @@ const DashboardPage: React.FC = () => {
     );
   }
 
-  // If not authenticated after hydration, show access denied message
-  if (!isAuthenticated) {
+  // If no user is authenticated, the middleware should have redirected us to login
+  // So we assume user is authenticated at this point
+  if (!authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-600">Access denied. Redirecting to login...</p>
+          <p className="text-gray-600">Access denied. Redirecting...</p>
         </div>
       </div>
     );
@@ -196,7 +167,6 @@ const DashboardPage: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
   };
 
   return (
@@ -221,75 +191,87 @@ const DashboardPage: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Your Tasks</h2>
-              <button
-                onClick={() => setShowTaskForm(!showTaskForm)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                {showTaskForm ? 'Cancel' : 'Add New Task'}
-              </button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column - Task Management */}
+          <div className="px-4 py-6 sm:px-0">
+            <div className="bg-white shadow rounded-lg p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Your Tasks</h2>
+                <button
+                  onClick={() => setShowTaskForm(!showTaskForm)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  {showTaskForm ? 'Cancel' : 'Add New Task'}
+                </button>
+              </div>
+
+              {error && (
+                <div className="rounded-md bg-red-50 p-4 mb-4">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              {showTaskForm && (
+                <div className="mb-6">
+                  <TaskForm
+                    onSave={handleCreateTask}
+                    onCancel={() => setShowTaskForm(false)}
+                    userId={authUser?.id}
+                  />
+                </div>
+              )}
+
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : (
+                <div>
+                  {todos.length === 0 ? (
+                    <div className="text-center py-12">
+                      <svg
+                        className="mx-auto h-12 w-12 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                        />
+                      </svg>
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Get started by creating a new task.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-1">
+                      {todos.map((todo) => (
+                        <TaskCard
+                          key={todo.id}
+                          task={todo}
+                          onUpdate={handleUpdateTask}
+                          onDelete={handleDeleteTask}
+                          onToggle={handleToggleTask}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+          </div>
 
-            {error && (
-              <div className="rounded-md bg-red-50 p-4 mb-4">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-
-            {showTaskForm && (
-              <div className="mb-6">
-                <TaskForm
-                  onSave={handleCreateTask}
-                  onCancel={() => setShowTaskForm(false)}
-                  userId={authUser?.id}
-                />
-              </div>
-            )}
-
-            {loading ? (
-              <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-              </div>
-            ) : (
-              <div>
-                {todos.length === 0 ? (
-                  <div className="text-center py-12">
-                    <svg
-                      className="mx-auto h-12 w-12 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                      />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No tasks</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Get started by creating a new task.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {todos.map((todo) => (
-                      <TaskCard
-                        key={todo.id}
-                        task={todo}
-                        onUpdate={handleUpdateTask}
-                        onDelete={handleDeleteTask}
-                        onToggle={handleToggleTask}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+          {/* Right Column - AI Chat Interface */}
+          <div className="px-4 py-6 sm:px-0">
+            <ChatInterface
+              userId={authUser?.id || 0}
+              userName={authUser?.username || ''}
+              onLogout={handleLogout}
+            />
           </div>
         </div>
       </main>

@@ -1,0 +1,15 @@
+{{- if .Values.configMaps }}
+{{- range $key, $value := .Values.configMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "todo-chatbot.fullname" $ }}-{{ $key }}
+  labels:
+    {{- include "todo-chatbot.labels" $ | nindent 4 }}
+data:
+  {{- range $dataKey, $dataValue := $value }}
+  {{ $dataKey }}: {{ $dataValue | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}
