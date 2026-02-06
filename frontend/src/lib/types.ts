@@ -5,7 +5,6 @@ export interface User {
   created_at: string; // ISO string format from database
   updated_at: string; // ISO string format from database
   is_active: boolean;
-  password_hash?: string; // Only for backend use
 }
 
 export interface UserResponse {
@@ -31,7 +30,6 @@ export interface Todo {
   title: string;
   description?: string;
   completed: boolean;
-  user_id: number;
   created_at: string; // ISO string format from database
   updated_at: string; // ISO string format from database
 }
@@ -69,7 +67,6 @@ export interface TokenResponse {
 // New types for Todo AI Chatbot
 export interface Task {
   id: number;
-  user_id: number;
   title: string;
   description?: string;
   completed: boolean;
@@ -86,7 +83,6 @@ export interface Conversation {
 
 export interface Message {
   id: number;
-  user_id: number;
   conversation_id: number;
   role: 'user' | 'assistant';
   content: string;
@@ -101,9 +97,6 @@ export interface ChatRequest {
 export interface ChatResponse {
   response: string;
   conversation_id: number;
-  metadata: {
-    user_id: number;
-  };
 }
 
 // JWT Payload interface for authentication

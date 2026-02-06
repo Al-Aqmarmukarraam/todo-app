@@ -12,6 +12,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isHydrated: boolean; // Added for hydration handling
   error: string | null;
 }
 
@@ -25,7 +26,8 @@ type AuthAction =
   | { type: 'REGISTER_FAILURE'; payload: string }
   | { type: 'LOGOUT' }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'RESTORE_AUTH'; payload: { user: User | null; token: string | null; isAuthenticated: boolean } };
+  | { type: 'RESTORE_AUTH'; payload: { user: User | null; token: string | null; isAuthenticated: boolean } }
+  | { type: 'SET_HYDRATED' };
 
 // Initial state
 const initialState: AuthState = {
@@ -33,6 +35,7 @@ const initialState: AuthState = {
   token: null,
   isAuthenticated: false,
   isLoading: false,
+  isHydrated: false, // Initially not hydrated
   error: null,
 };
 
@@ -87,6 +90,12 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         token: action.payload.token,
         isAuthenticated: action.payload.isAuthenticated,
         isLoading: false,
+        isHydrated: true, // Set hydrated to true when restoring auth
+      };
+    case 'SET_HYDRATED':
+      return {
+        ...state,
+        isHydrated: true,
       };
     default:
       return state;
@@ -113,22 +122,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Restore auth state from cookies on initial load
   useEffect(() => {
-    const restoreAuthState = () => {
-      const token = getToken();
-      const user = getUser();
-      const isAuthenticated = !!token && !!user;
+    const token = getToken();
+    const user = getUser();
+    const isAuthenticated = !!token && !!user;
 
-      dispatch({
-        type: 'RESTORE_AUTH',
-        payload: {
-          user,
-          token,
-          isAuthenticated
-        }
-      });
-    };
-
-    restoreAuthState();
+    dispatch({
+      type: 'RESTORE_AUTH',
+      payload: {
+        user,
+        token,
+        isAuthenticated
+      }
+    });
   }, []);
 
   // Login function

@@ -39,7 +39,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, userName, onLogou
       // Add user message to UI immediately
       const userMessage: Message = {
         id: Date.now(),
-        user_id: userId,
         conversation_id: currentConversationId || 0, // Use current conversation ID or 0 if not set
         role: 'user',
         content: messageText,
@@ -62,7 +61,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, userName, onLogou
 
         const aiMessage: Message = {
           id: Date.now() + 1,
-          user_id: userId,
           conversation_id: response.data.conversation_id,
           role: 'assistant',
           content: response.data.response,

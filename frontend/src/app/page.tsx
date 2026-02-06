@@ -48,7 +48,6 @@ const HomePage = () => {
       // Add user message to UI immediately
       const userMessage: Message = {
         id: Date.now(),
-        user_id: authUser.id,
         conversation_id: 1, // This would come from the actual conversation
         role: 'user',
         content: messageText,
@@ -66,7 +65,6 @@ const HomePage = () => {
       if (response.success && response.data) {
         const aiMessage: Message = {
           id: Date.now() + 1,
-          user_id: authUser.id,
           conversation_id: response.data.conversation_id,
           role: 'assistant',
           content: response.data.response,

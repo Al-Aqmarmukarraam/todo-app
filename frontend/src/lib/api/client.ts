@@ -418,7 +418,7 @@ export const {
   createTask,
   updateTask,
   deleteTask,
-  toggleTaskCompletionOld,
+  toggleTaskCompletion,
   chat,
   getConversations,
   getConversationHistory,
