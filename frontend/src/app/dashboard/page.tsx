@@ -76,7 +76,7 @@ const DashboardPage: React.FC = () => {
 
   const handleUpdateTask = async (updatedTask: Todo) => {
     // Create update data excluding user_id since it's derived from the JWT token on the backend
-    const { user_id, id, created_at, updated_at, ...updateData } = updatedTask;
+    const { id, created_at, updated_at, ...updateData } = updatedTask;
 
     try {
       // Use the safe fetch wrapper - backend expects user identification from JWT cookie
