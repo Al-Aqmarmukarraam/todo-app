@@ -47,7 +47,7 @@ const DashboardPage: React.FC = () => {
 
   const handleCreateTask = async (taskData: TodoCreate | TodoUpdate) => {
     // Create task data excluding user_id since it's derived from the JWT token on the backend
-    const { user_id, ...taskDataWithoutUserId } = taskData;
+    const { user_id, ...taskDataWithoutUserId } = taskData as any;
 
     // Ensure we have a TaskCreate-compatible object when creating
     const createTaskData: any = {
