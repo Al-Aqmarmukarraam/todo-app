@@ -41,7 +41,7 @@ export const validateToken = async (): Promise<boolean> => {
  */
 export const performLogin = async (email: string, password: string) => {
   try {
-    const response = await fetch(`${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api'}/auth/login`, {
+    const response = await fetch(`${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000'}/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ export const performLogin = async (email: string, password: string) => {
  */
 export const performRegistration = async (email: string, username: string, password: string) => {
   try {
-    const response = await fetch(`${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api'}/auth/register`, {
+    const response = await fetch(`${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000'}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

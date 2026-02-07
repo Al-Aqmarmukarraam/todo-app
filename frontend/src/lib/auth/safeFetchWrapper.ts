@@ -5,7 +5,7 @@ import { getToken, clearAuthStorage } from './utils';
 import { parseBackendError } from './safeErrorParser';
 
 // Base API configuration
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] || 'http://localhost:8000/api';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000';
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;

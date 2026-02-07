@@ -23,7 +23,7 @@ export type ApiResponse<T> = ApiSuccess<T> | ApiError;
 class TypedApiClient {
   private baseUrl: string;
 
-  constructor(baseUrl: string = process.env['NEXT_PUBLIC_API_URL'] || 'http://127.0.0.1:8000/api') {
+  constructor(baseUrl: string = process.env['NEXT_PUBLIC_API_URL'] || 'http://127.0.0.1:8000') {
     this.baseUrl = baseUrl;
   }
 

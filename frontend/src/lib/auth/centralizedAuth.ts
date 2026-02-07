@@ -76,7 +76,7 @@ export const restoreAuthOnLoad = async (): Promise<{
 export const login = async (email: string, password: string): Promise<ApiResponse<AuthResponse>> => {
   try {
     const response = await fetch(
-      `${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api'}/auth/login`,
+      `${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000'}/auth/login`,
       {
         method: 'POST',
         headers: {
@@ -138,7 +138,7 @@ export const register = async (
 ): Promise<ApiResponse<AuthResponse>> => {
   try {
     const response = await fetch(
-      `${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000/api'}/auth/register`,
+      `${process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000'}/auth/register`,
       {
         method: 'POST',
         headers: {

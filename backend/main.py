@@ -12,6 +12,12 @@ from models.user import User
 from dapr_client import dapr_client
 import asyncio
 from dotenv import load_dotenv
+import os
+import uvicorn
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,7 +32,10 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=[
+        "http://localhost:3000",  # Local Next.js development server
+        "https://*.vercel.app",   # Vercel production deployments
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

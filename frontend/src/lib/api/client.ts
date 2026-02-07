@@ -5,7 +5,7 @@ import { getToken, isAuthenticated, clearAuthStorage } from '../auth/utils';
 import { parseBackendError } from '../auth/safeErrorParser';
 
 // Base API configuration
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] || 'http://127.0.0.1:8000/api';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://127.0.0.1:8000';
 
 // Define API response types
 export interface ApiResponse<T = any> {

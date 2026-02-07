@@ -1,6 +1,6 @@
 import { User, UserCreate, Todo, TodoCreate, TodoUpdate, UserResponse } from './types';
 
-const API_BASE_URL = process.env['NEXT_PUBLIC_API_BASE_URL'] || 'http://localhost:8000';
+const API_BASE_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:8000';
 
 class ApiClient {
   private getAuthHeaders(): HeadersInit {
@@ -13,7 +13,7 @@ class ApiClient {
 
   // Authentication methods
   async register(userData: UserCreate): Promise<User> {
-    const response = await fetch(`${API_BASE_URL}/api/register`, {
+    const response = await fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -31,7 +31,7 @@ class ApiClient {
   }
 
   async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
-    const response = await fetch(`${API_BASE_URL}/api/login`, {
+    const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ class ApiClient {
   }
 
   async getUserProfile(): Promise<UserResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/me`, {
+    const response = await fetch(`${API_BASE_URL}/me`, {
       headers: this.getAuthHeaders(),
     });
 
@@ -83,7 +83,7 @@ class ApiClient {
 
   // Task methods (aligned with backend API)
   async getTodos(): Promise<Todo[]> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+    const response = await fetch(`${API_BASE_URL}/tasks`, {
       headers: this.getAuthHeaders(),
     });
 
@@ -106,7 +106,7 @@ class ApiClient {
   }
 
   async createTodo(todoData: TodoCreate): Promise<Todo> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+    const response = await fetch(`${API_BASE_URL}/tasks`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(todoData),
@@ -133,7 +133,7 @@ class ApiClient {
   }
 
   async updateTodo(id: number, todoData: TodoUpdate): Promise<Todo> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(todoData),
@@ -162,7 +162,7 @@ class ApiClient {
   }
 
   async deleteTodo(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders(),
     });
@@ -186,7 +186,7 @@ class ApiClient {
   }
 
   async toggleTodo(id: number): Promise<Todo> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}/complete`, {
+    const response = await fetch(`${API_BASE_URL}/tasks/${id}/complete`, {
       method: 'PATCH',
       headers: this.getAuthHeaders(),
     });
