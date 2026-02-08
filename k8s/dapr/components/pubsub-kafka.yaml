@@ -4,10 +4,14 @@ metadata:
   name: pubsub
   namespace: default
 spec:
-  type: pubsub.redis
+  type: pubsub.kafka
   version: v1
   metadata:
-  - name: redisHost
-    value: localhost:6379
-  - name: redisPassword
-    value: ""
+  - name: brokers
+    value: "todo-kafka-kafka-brokers.kafka.svc.cluster.local:9092"
+  - name: consumerGroup
+    value: "dapr-consumer-group"
+  - name: clientID
+    value: "dapr-kafka-client"
+  - name: authRequired
+    value: "false"

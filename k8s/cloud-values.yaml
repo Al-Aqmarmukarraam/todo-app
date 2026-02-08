@@ -1,0 +1,149 @@
+# Cloud-specific values for Todo Chatbot Helm Chart
+# Optimized for AKS, GKE, or OKE deployment
+
+global:
+  imagePullPolicy: Always  # Always pull latest images in cloud
+  serviceType: LoadBalancer  # Use LoadBalancer for cloud deployments
+
+# Ingress configuration for cloud
+ingress:
+  enabled: true
+  className: "nginx"  # Specify ingress class
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod  # For SSL certificates
+  hosts:
+    - host: todo-chatbot.example.com  # Replace with your domain
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: todo-chatbot-tls
+      hosts:
+        - todo-chatbot.example.com
+
+# Frontend configuration optimized for cloud
+frontend:
+  replicaCount: 3  # Multiple replicas for high availability
+  image:
+    repository: your-registry/todo-frontend  # Replace with your container registry
+    tag: latest
+  service:
+    port: 3000
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+  env:
+    - name: NEXT_PUBLIC_API_URL
+      value: "https://api.todo-chatbot.example.com"  # Replace with your API URL
+    - name: NODE_ENV
+      value: "production"
+
+# Backend configuration optimized for cloud
+backend:
+  replicaCount: 3  # Multiple replicas for high availability
+  image:
+    repository: your-registry/todo-backend  # Replace with your container registry
+    tag: latest
+  service:
+    port: 8000
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+  env:
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: todo-cloud-secrets
+          key: database-url
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: todo-cloud-secrets
+          key: redis-url
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: todo-cloud-secrets
+          key: openai-api-key
+    - name: DAPR_HTTP_PORT
+      value: "3500"
+    - name: ENVIRONMENT
+      value: "production"
+
+# Kafka configuration for cloud (using managed service)
+kafka:
+  enabled: false  # Disable local Kafka, use managed service
+  external:
+    enabled: true
+    brokers:
+      - your-managed-kafka-endpoint:9093  # Replace with your managed Kafka endpoint
+
+# PostgreSQL configuration for cloud (using managed service)
+postgresql:
+  enabled: false  # Disable local PostgreSQL, use managed service
+  external:
+    enabled: true
+    host: your-managed-db-endpoint  # Replace with your managed DB endpoint
+    port: 5432
+    database: todo_db
+    username: postgres
+    existingSecret: todo-cloud-secrets
+    secretKeys:
+      passwordKey: database-password
+
+# Dapr configuration for cloud
+dapr:
+  enabled: true
+  config: "dapr-config"
+  logLevel: "info"
+
+# Monitoring and observability
+monitoring:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+  loki:
+    enabled: true  # For log aggregation
+  tempo:
+    enabled: true  # For distributed tracing
+
+# Security configurations
+security:
+  rbac:
+    create: true
+  podSecurityPolicy:
+    enabled: false
+
+# Network policies for enhanced security
+networkPolicy:
+  enabled: true
+  ingress:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          app: nginx-ingress
+  egress:
+    - {}

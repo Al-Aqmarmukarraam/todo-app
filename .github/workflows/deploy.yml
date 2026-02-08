@@ -1,0 +1,169 @@
+name: Deploy to Cloud (AKS/GKE/OKE)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run backend tests
+      run: |
+        cd backend
+        python -m pytest tests/ -v
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        
+    - name: Build and push frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:latest
+        labels: ${{ steps.meta.outputs.labels }}
+        
+    - name: Build and push backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:latest
+        labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+        
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: 'latest'
+        
+    - name: Set up Dapr
+      run: |
+        wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
+        
+    - name: Configure kubectl for cloud cluster
+      run: |
+        # This step would configure kubectl to connect to your cloud cluster
+        # The exact command depends on your cloud provider:
+        # For AKS: az aks get-credentials --resource-group <resource-group> --name <cluster-name>
+        # For GKE: gcloud container clusters get-credentials <cluster-name> --zone <zone> --project <project>
+        # For OKE: oci ce cluster create-kubeconfig --cluster-id <cluster-id>
+        echo "Configuring kubectl for cloud cluster..."
+        # Replace the following with your actual cloud cluster configuration command
+        # kubectl config use-context your-cloud-cluster-context
+        echo "Kubectl configured for cloud cluster"
+        
+    - name: Install Dapr to cluster
+      run: |
+        dapr init -k
+        kubectl wait --for=condition=ready pod -l app=dapr-operator -n dapr-system --timeout=300s
+        
+    - name: Deploy Kafka (Strimzi) to cluster
+      run: |
+        kubectl create namespace kafka --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
+        kubectl wait --for=condition=ready pod -l name=strimzi-cluster-operator -n kafka --timeout=300s
+        kubectl apply -f k8s/kafka/kafka-cluster.yaml
+        kubectl wait --for=condition=ready pod -l strimzi.io/name=todo-kafka-kafka -n kafka --timeout=600s
+        
+    - name: Deploy Dapr components
+      run: |
+        kubectl apply -f k8s/dapr/components/
+        
+    - name: Create secrets
+      run: |
+        # Create secrets from GitHub secrets
+        kubectl create secret generic todo-cloud-secrets \
+          --from-literal=database-url="${{ secrets.DATABASE_URL }}" \
+          --from-literal=database-password="${{ secrets.DATABASE_PASSWORD }}" \
+          --from-literal=openai-api-key="${{ secrets.OPENAI_API_KEY }}" \
+          --from-literal=redis-url="${{ secrets.REDIS_URL }}" \
+          --dry-run=client -o yaml | kubectl apply -f -
+          
+    - name: Deploy application with Helm
+      run: |
+        # Update Helm repo
+        helm repo update
+        
+        # Install/upgrade the application using cloud values
+        helm upgrade --install todo-chatbot ./helm \
+          --values k8s/cloud-values.yaml \
+          --set frontend.image.tag=${{ github.sha }} \
+          --set backend.image.tag=${{ github.sha }} \
+          --wait \
+          --timeout=10m
+          
+    - name: Verify deployment
+      run: |
+        kubectl wait --for=condition=Ready pods --selector=app.kubernetes.io/instance=todo-chatbot --timeout=300s
+        kubectl get pods -l app.kubernetes.io/instance=todo-chatbot
+        kubectl get svc -l app.kubernetes.io/instance=todo-chatbot
